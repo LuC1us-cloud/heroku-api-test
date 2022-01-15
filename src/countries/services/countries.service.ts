@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { from, Observable } from 'rxjs';
-import { DeleteResult, Repository, UpdateResult } from 'typeorm';
+import { Repository } from 'typeorm';
 import { CountryEntity } from '../models/country.entity';
 import { Country } from '../models/country.interface';
 
@@ -12,23 +11,12 @@ export class CountriesService {
     private readonly countryRepository: Repository<CountryEntity>,
   ) {}
 
-  createCountry(country: Country): Observable<Country> {
-    return from(this.countryRepository.save(country));
+  createCountry(country: Country): Promise<Country> {
+    // create country row in the database
+    return this.countryRepository.save(country);
   }
-
-  findAll(): Observable<Country[]> {
-    return from(this.countryRepository.find());
-  }
-
-  findOne(id: number): Observable<Country> {
-    return from(this.countryRepository.findOne(id));
-  }
-
-  update(id:number, country: Country): Observable<UpdateResult> {
-    return from(this.countryRepository.update(id, country));
-  }
-
-  delete(id: number): Observable<DeleteResult> {
-    return from(this.countryRepository.delete(id));
+  findOne(code: string, year: number): Promise<Country> {
+    // find country by code and year
+    return this.countryRepository.findOne({ code, year });
   }
 }

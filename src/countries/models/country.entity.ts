@@ -1,16 +1,13 @@
-import { Column, Entity, PrimaryGeneratedColumn } from "typeorm";
+import { Column, Entity, PrimaryColumn } from 'typeorm';
 
 @Entity('Country')
 export class CountryEntity {
-    @PrimaryGeneratedColumn()
-    id?: number;
+  @PrimaryColumn()
+  code: string;
 
-    @Column( { default: '' } )
-    title?: string;
+  @PrimaryColumn()
+  year: number;
 
-    @Column( { default: '' })
-    body?: string;
-
-    @Column( { default: () => 'CURRENT_TIMESTAMP', type: 'timestamp' })
-    created_at?: Date;
+  @Column('jsonb')
+  holidays: object[];
 }
