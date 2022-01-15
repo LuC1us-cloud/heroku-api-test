@@ -1,0 +1,27 @@
+{
+    "name": "App",
+    "description": "Test api to check out how heroku deployment works",
+    "repository": "https://github.com/tooljet/tooljet",
+    "success_url": "/",
+    "scripts":{
+      "predeploy": "npm install && npm run build"
+    },
+    "env": {
+      "NODE_ENV": {
+        "description": "Environment [production/development]",
+        "value": "production"
+      }
+    },
+    "formation": {
+      "web": {
+        "quantity": 1
+      }
+    },
+    "image": "heroku/nodejs",
+    "addons": ["heroku-postgresql"],
+    "buildpacks": [
+      {
+        "url": "heroku/nodejs"
+      }
+    ]
+  }
