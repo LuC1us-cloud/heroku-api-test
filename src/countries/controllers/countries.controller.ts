@@ -5,11 +5,11 @@ import fetch from 'node-fetch';
 export class CountriesController {
   constructor(private countriesService: CountriesService) {}
 
-  @Get('list')
+  @Get('supportedCountries')
   // Not gonna make this method save country info, because the list could change on the API provider side
   // and there would be no way of knowing, without calling the same API again.
   // tldr: making this method save responses from API would not make sense.
-  async availableCountriesList(): Promise<object> {
+  async supportedCountriesList(): Promise<object> {
     const response = await fetch(
       'https://kayaposoft.com/enrico/json/v2.0/?action=getSupportedCountries',
     );
@@ -24,7 +24,7 @@ export class CountriesController {
     return countries;
   }
 
-  @Get('grouped/:countryCode/:year')
+  @Get('groupedByMonth/:countryCode/:year')
   async groupedByMonthHolidayListForCountry(
     @Param() params: string[],
   ): Promise<object> {
@@ -46,7 +46,7 @@ export class CountriesController {
     return groupedDays;
   }
 
-  @Get('day/:countryCode/:year/:month/:day')
+  @Get('dayStatus/:countryCode/:year/:month/:day')
   async specificDayStatus(@Param() params: string[]): Promise<object> {
     const countryCode = params['countryCode'];
     const year = parseInt(params['year']);
@@ -108,7 +108,8 @@ export class CountriesController {
       // if the next free day is not consecutive (difference == 1), reset the current number
       else currentFreeDayCount = 1;
       // if the current number of consecutive free days is greater than the current max, update the max
-      if (currentFreeDayCount > maxFreeDayCount) maxFreeDayCount = currentFreeDayCount;
+      if (currentFreeDayCount > maxFreeDayCount)
+        maxFreeDayCount = currentFreeDayCount;
     }
 
     return {
@@ -118,12 +119,12 @@ export class CountriesController {
 }
 
 // helper function to get the difference between two dates in days
-function getDifferenceInDays(date1:Date, date2:Date) {
+function getDifferenceInDays(date1: Date, date2: Date) {
   var diff = date2.getTime() - date1.getTime();
   return diff / (1000 * 60 * 60 * 24);
 }
 
-async function getData(countryCode:string, year:number, database) {
+async function getData(countryCode: string, year: number, database) {
   // temp data variable
   var data;
   // check if the country and year is stored in the database, wait for the response
