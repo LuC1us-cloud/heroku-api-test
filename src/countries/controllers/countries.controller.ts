@@ -7,7 +7,7 @@ export class CountriesController {
 
   @Get('list')
   // Not gonna make this method save country info, because the list could change on the API provider side
-  // and there would be no way of without calling the same API again.
+  // and there would be no way of knowing, without calling the same API again.
   // tldr: making this method save responses from API would not make sense.
   async availableCountriesList(): Promise<object> {
     const response = await fetch(
@@ -30,37 +30,9 @@ export class CountriesController {
   ): Promise<object> {
     const countryCode = params['countryCode'];
     const year = params['year'];
-    // will be used to store the list of holidays for each month, either from API or database
-    var data = [];
-    // check if the country and year is stored in the database, wait for the response
-    const queryResult = await this.countriesService.findOne(countryCode, year);
-    if (queryResult) data = queryResult.holidays;
-    else {
-      // if the country and year is not stored in the database, call the API and save the response
-      const response = await fetch(
-        `https://kayaposoft.com/enrico/json/v2.0?action=getHolidaysForYear&year=${year}&country=${countryCode}`,
-      );
-      const jsonResponse = await response.json();
-
-      if (jsonResponse.error) return jsonResponse;
-      // map response to format information
-      const freeDays = jsonResponse.map((holiday) => {
-        return {
-          date: holiday.date.day,
-          month: holiday.date.month,
-          name: holiday.name[0].text,
-          holidayType: holiday.holidayType,
-        };
-      });
-      data = freeDays;
-
-      // save the list of holidays to the database
-      await this.countriesService.createCountry({
-        code: countryCode,
-        year,
-        holidays: data,
-      });
-    }
+    const data = await getData(countryCode, year, this.countriesService);
+    // if API responded with an error, return the error
+    if (data.error) return { error: data.error };
 
     // group free days by month
     const groupedDays = data.reduce((year, day) => {
@@ -78,50 +50,22 @@ export class CountriesController {
   async specificDayStatus(@Param() params: string[]): Promise<object> {
     const countryCode = params['countryCode'];
     const year = parseInt(params['year']);
-    var month = parseInt(params['month']);
-    var day = parseInt(params['day']);
+    const month = parseInt(params['month']);
+    const day = parseInt(params['day']);
 
     // some data validation
     if (!year || !month || !day) return { error: 'Invalid date' };
     if (month > 12 || month < 1) return { error: 'Invalid month' };
-    // check if the day is a valid day of the month
     if (day > new Date(year, month, 0).getDate() || day < 1)
       return { error: 'Invalid day' };
 
-    // will be used to store the list of holidays for each month, either from API or database
-    var data = [];
-    // check if the country and year is stored in the database, wait for the response
-    const queryResult = await this.countriesService.findOne(countryCode, year);
-    if (queryResult) data = queryResult.holidays;
-    else {
-      // if the country and year is not stored in the database, call the API and save the response
-      const response = await fetch(
-        `https://kayaposoft.com/enrico/json/v2.0?action=getHolidaysForYear&year=${year}&country=${countryCode}`,
-      );
-      const jsonResponse = await response.json();
+    const data = await getData(countryCode, year, this.countriesService);
+    // if API responded with an error, return the error
+    if (data.error) return { error: data.error };
 
-      if (jsonResponse.error) return jsonResponse;
-      // map response to format information
-      const freeDays = jsonResponse.map((holiday) => {
-        return {
-          date: holiday.date.day,
-          month: holiday.date.month,
-          name: holiday.name[0].text,
-          holidayType: holiday.holidayType,
-        };
-      });
-      data = freeDays;
-
-      // save the list of holidays to the database
-      await this.countriesService.createCountry({
-        code: countryCode,
-        year,
-        holidays: data,
-      });
-    }
     // check if the day is in the holiday list
     const specificDay = data.find(
-      (holiday) => holiday.date === day && holiday.month === month,
+      (holiday) => holiday.day === day && holiday.month === month,
     );
     if (specificDay) return { status: specificDay.holidayType };
 
@@ -129,46 +73,21 @@ export class CountriesController {
     const dayOfWeek = new Date(year, month - 1, day).getDay();
     // if it is a saturday or a sunday, return status as 'free day'
     if (dayOfWeek === 0 || dayOfWeek === 6) return { status: 'free_day' };
+
     return { status: 'work_day' };
   }
 
   @Get('maxFreeDays/:countryCode/:year')
-  async maximumNumberOfConsecutiveFreeDays(
+  async maxNumberOfConsecutiveFreeDays(
     @Param() params: string[],
   ): Promise<object> {
     const countryCode = params['countryCode'];
     const year = params['year'];
-    // will be used to store the list of holidays for each month, either from API or database
-    var data = [];
-    // check if the country and year is stored in the database, wait for the response
-    const queryResult = await this.countriesService.findOne(countryCode, year);
-    if (queryResult) data = queryResult.holidays;
-    else {
-      // if the country and year is not stored in the database, call the API and save the response
-      const response = await fetch(
-        `https://kayaposoft.com/enrico/json/v2.0?action=getHolidaysForYear&year=${year}&country=${countryCode}`,
-      );
-      const jsonResponse = await response.json();
 
-      if (jsonResponse.error) return jsonResponse;
-      // map response to format information
-      const freeDays = jsonResponse.map((holiday) => {
-        return {
-          day: holiday.date.day,
-          month: holiday.date.month,
-          name: holiday.name[0].text,
-          holidayType: holiday.holidayType,
-        };
-      });
-      data = freeDays;
+    const data = await getData(countryCode, year, this.countriesService);
+    // if API responded with an error, return the error
+    if (data.error) return { error: data.error };
 
-      // save the list of holidays to the database
-      await this.countriesService.createCountry({
-        code: countryCode,
-        year,
-        holidays: data,
-      });
-    }
     // iterate over the array of holidays and return a list in Date format
     const freeDaysList = data.map((holiday) => {
       // for some reason day needs to be +1 to get the correct day?
@@ -177,30 +96,69 @@ export class CountriesController {
     });
 
     // max number of consecutive free days
-    var maxNumber = 1;
+    var maxFreeDayCount = 1;
     // current number of consecutive free days, used for tracking current max
-    var currentNumber = 1;
+    var currentFreeDayCount = 1;
     // iterate over the list of free days and check if they are consecutive
     for (var i = 0; i < freeDaysList.length - 1; i++) {
       const currentFreeDay = freeDaysList[i];
       const nextFreeDay = freeDaysList[i + 1];
       if (getDifferenceInDays(currentFreeDay, nextFreeDay) === 1)
-        currentNumber++;
-      // if the next free day is not consecutive, reset the current number
-      else currentNumber = 1;
-
+        currentFreeDayCount++;
+      // if the next free day is not consecutive (difference == 1), reset the current number
+      else currentFreeDayCount = 1;
       // if the current number of consecutive free days is greater than the current max, update the max
-      if (currentNumber > maxNumber) maxNumber = currentNumber;
+      if (currentFreeDayCount > maxFreeDayCount) maxFreeDayCount = currentFreeDayCount;
     }
 
     return {
-      maxConsecutiveFreeDays: maxNumber,
+      maxConsecutiveFreeDays: maxFreeDayCount,
     };
   }
 }
 
 // helper function to get the difference between two dates in days
-function getDifferenceInDays(date1, date2) {
+function getDifferenceInDays(date1:Date, date2:Date) {
   var diff = date2.getTime() - date1.getTime();
   return diff / (1000 * 60 * 60 * 24);
+}
+
+async function getData(countryCode:string, year:number, database) {
+  // temp data variable
+  var data;
+  // check if the country and year is stored in the database, wait for the response
+  const queryResult = await database.findOne(countryCode, year);
+  // if data is already in db return it
+  if (queryResult) {
+    data = queryResult.holidays;
+    return data;
+  }
+
+  // if the country and year is not stored in the database, call the API and save the response
+  const response = await fetch(
+    `https://kayaposoft.com/enrico/json/v2.0?action=getHolidaysForYear&year=${year}&country=${countryCode}`,
+  );
+  const jsonResponse = await response.json();
+  // if error was returned from API return it
+  if (jsonResponse.error) return jsonResponse;
+
+  // map response to format information
+  const freeDays = jsonResponse.map((holiday) => {
+    return {
+      day: holiday.date.day,
+      month: holiday.date.month,
+      name: holiday.name[0].text,
+      holidayType: holiday.holidayType,
+    };
+  });
+  data = freeDays;
+
+  // save the list of holidays to the database
+  await database.createCountry({
+    code: countryCode,
+    year,
+    holidays: data,
+  });
+  // if everything went well return the formatted data
+  return data;
 }
