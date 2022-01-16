@@ -26,10 +26,9 @@ export class CountriesController {
 
   @Get('groupedByMonth/:countryCode/:year')
   async groupedByMonthHolidayListForCountry(
-    @Param() params: string[],
+    @Param('countryCode') countryCode: string,
+    @Param('year') year: number,
   ): Promise<object> {
-    const countryCode = params['countryCode'];
-    const year = params['year'];
     const data = await getData(countryCode, year, this.countriesService);
     // if API responded with an error, return the error
     if (data.error) return { error: data.error };
@@ -47,12 +46,12 @@ export class CountriesController {
   }
 
   @Get('dayStatus/:countryCode/:year/:month/:day')
-  async specificDayStatus(@Param() params: string[]): Promise<object> {
-    const countryCode = params['countryCode'];
-    const year = parseInt(params['year']);
-    const month = parseInt(params['month']);
-    const day = parseInt(params['day']);
-
+  async specificDayStatus(
+    @Param('countryCode') countryCode: string,
+    @Param('year') year: number,
+    @Param('month') month: number,
+    @Param('day') day: number,
+  ): Promise<object> {
     // some data validation
     if (!year || !month || !day) return { error: 'Invalid date' };
     if (month > 12 || month < 1) return { error: 'Invalid month' };
@@ -65,7 +64,7 @@ export class CountriesController {
 
     // check if the day is in the holiday list
     const specificDay = data.find(
-      (holiday) => holiday.day === day && holiday.month === month,
+      (holiday) => holiday.day == day && holiday.month == month,
     );
     if (specificDay) return { status: specificDay.holidayType };
 
@@ -79,11 +78,9 @@ export class CountriesController {
 
   @Get('maxFreeDays/:countryCode/:year')
   async maxNumberOfConsecutiveFreeDays(
-    @Param() params: string[],
+    @Param('countryCode') countryCode: string,
+    @Param('year') year: number,
   ): Promise<object> {
-    const countryCode = params['countryCode'];
-    const year = params['year'];
-
     const data = await getData(countryCode, year, this.countriesService);
     // if API responded with an error, return the error
     if (data.error) return { error: data.error };
