@@ -34,7 +34,7 @@ export class CountriesController {
     if (data.error) return { error: data.error };
 
     // group free days by month
-    const groupedDays = data.reduce((year, day) => {
+    const groupedDays = data.reduce((year: { [x: number]: any[]; }, day: { month: number; }) => {
       const month = day.month;
       if (!year[month]) {
         year[month] = [];
@@ -64,12 +64,12 @@ export class CountriesController {
 
     // check if the day is in the holiday list
     const specificDay = data.find(
-      (holiday) => holiday.day == day && holiday.month == month,
+      (holiday: { day: number; month: number; }) => holiday.day == day && holiday.month == month,
     );
     if (specificDay) return { status: specificDay.holidayType };
 
     // create a date with the given year, month and day
-    const dayOfWeek = new Date(year, month - 1, day).getDay();
+    const dayOfWeek: number = new Date(year, month - 1, day).getDay();
     // if it is a saturday or a sunday, return status as 'free day'
     if (dayOfWeek === 0 || dayOfWeek === 6) return { status: 'free_day' };
 
@@ -86,7 +86,7 @@ export class CountriesController {
     if (data.error) return { error: data.error };
 
     // iterate over the array of holidays and return a list in Date format
-    const freeDaysList = data.map((holiday) => {
+    const freeDaysList = data.map((holiday: { month: number; day: number; }) => {
       // for some reason day needs to be +1 to get the correct day?
       // otherwise date 2020-01-01 will jump to 2019-12-31
       return new Date(year, holiday.month - 1, holiday.day + 1);
@@ -123,7 +123,7 @@ function getDifferenceInDays(date1: Date, date2: Date) {
 
 async function getData(countryCode: string, year: number, database) {
   // temp data variable
-  var data;
+  var data: any;
   // check if the country and year is stored in the database, wait for the response
   const queryResult = await database.findOne(countryCode, year);
   // if data is already in db return it
@@ -141,7 +141,7 @@ async function getData(countryCode: string, year: number, database) {
   if (jsonResponse.error) return jsonResponse;
 
   // map response to format information
-  const freeDays = jsonResponse.map((holiday) => {
+  const freeDays = jsonResponse.map((holiday: { date: { day: number; month: number; }; name: { text: string; }[]; holidayType: string; }) => {
     return {
       day: holiday.date.day,
       month: holiday.date.month,
