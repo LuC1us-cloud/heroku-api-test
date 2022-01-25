@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { HttpException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { HolidayEntity } from '../models/holiday.entity';
@@ -39,7 +39,7 @@ export class CountriesService {
     const data: Data = await this.getData(countryCode, year);
 
     // if API responded with an error, return the error
-    if (data.error) return { error: data.error };
+    if (data.error) throw new HttpException(data.error, 400);
 
     // group free days by month
     const groupedDays = data.holidays.reduce((year: { [month: number]: Holiday[]; }, day: Holiday) => {
@@ -54,14 +54,14 @@ export class CountriesService {
   }
   async getSpecificDayStatus(countryCode: string, year: number, month: number, day: number): Promise<object> {
     // some data validation
-    if (!year || !month || !day) return { error: 'Invalid date' };
-    if (month > 12 || month < 1) return { error: 'Invalid month' };
+    if (!year || !month || !day) throw new HttpException('Invalid date', 400);
+    if (month > 12 || month < 1) throw new HttpException('Invalid month', 400);
     if (day > new Date(year, month, 0).getDate() || day < 1)
-      return { error: 'Invalid day' };
+      throw new HttpException('Invalid day', 400);
 
     const data = await this.getData(countryCode, year);
     // if API responded with an error, return the error
-    if (data.error) return { error: data.error };
+    if (data.error) throw new HttpException(data.error, 400);
 
     // check if the day is in the holiday list
     const specificDay = data.holidays.find(
@@ -80,7 +80,7 @@ export class CountriesService {
   async getMaxNumberOfConsecutiveFreeDays(countryCode: string, year: number): Promise<object> {
     const data = await this.getData(countryCode, year);
     // if API responded with an error, return the error
-    if (data.error) return { error: data.error };
+    if (data.error) throw new HttpException(data.error, 400);
 
     // iterate over the array of holidays and return a list in Date format
     const freeDaysList = data.holidays.map((holiday: { month: number; day: number; }) => {
@@ -143,9 +143,8 @@ export class CountriesService {
     // if error was returned from API return it
     if (jsonResponse.error) {
       data.error = jsonResponse.error;
-      return data;
+      throw new HttpException(data.error, 400);
     }
-    console.log(data);
 
     // map response to format information
     data.holidays = jsonResponse.map((holiday: { date: { day: number; month: number; }; name: { text: string; }[]; holidayType: string; }) => {
