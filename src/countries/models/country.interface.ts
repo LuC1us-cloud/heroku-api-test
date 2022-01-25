@@ -1,5 +1,4 @@
 export interface Country {
-  code: string;
-  year: number;
-  holidays?: object[];
+    fullName: string;
+    countryCode: string;
 }
