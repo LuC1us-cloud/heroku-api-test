@@ -1,4 +1,4 @@
-import { Controller, Get, Param } from '@nestjs/common';
+import { Controller, Get, Param, Request, Response } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { CountriesService } from '../services/countries.service';
 @Controller('countries')
@@ -19,8 +19,9 @@ export class CountriesController {
   groupedByMonthHolidayListForCountry(
     @Param('countryCode') countryCode: string,
     @Param('year') year: number,
+    @Request() req,
   ) {
-    return this.countriesService.getGroupedByMonthHolidayListForCountry(countryCode, year);
+    return this.countriesService.getGroupedByMonthHolidayListForCountry(req.body.data);
   }
 
   @Get('dayStatus/:countryCode/:year/:month/:day')
@@ -32,8 +33,9 @@ export class CountriesController {
     @Param('year') year: number,
     @Param('month') month: number,
     @Param('day') day: number,
+    @Request() req,
   ) {
-    return this.countriesService.getSpecificDayStatus(countryCode, year, month, day);
+    return this.countriesService.getSpecificDayStatus(year, month, day, req.body.data);
   }
 
   @Get('maxFreeDays/:countryCode/:year')
@@ -43,7 +45,8 @@ export class CountriesController {
   maxNumberOfConsecutiveFreeDays(
     @Param('countryCode') countryCode: string,
     @Param('year') year: number,
+    @Request() req,
   ) {
-    return this.countriesService.getMaxNumberOfConsecutiveFreeDays(countryCode, year);
+    return this.countriesService.getMaxNumberOfConsecutiveFreeDays(year, req.body.data);
   }
 }
