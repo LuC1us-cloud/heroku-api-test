@@ -1,7 +1,7 @@
 import { Column, Entity, OneToMany, PrimaryColumn, PrimaryGeneratedColumn } from 'typeorm';
 import { HolidayEntity } from './holiday.entity';
 
-@Entity('Country')
+@Entity('Year')
 export class YearEntity {
 
   @PrimaryGeneratedColumn()

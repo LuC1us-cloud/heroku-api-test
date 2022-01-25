@@ -7,6 +7,7 @@ import { YearEntity } from '../models/year.entity';
 import { Year } from '../models/year.interface';
 import fetch from 'node-fetch';
 import { Country } from '../models/country.interface';
+import { Data } from '../models/data.interface';
 
 @Injectable()
 export class CountriesService {
@@ -20,7 +21,7 @@ export class CountriesService {
   // Not gonna make this method save country info, because the list could change on the API provider side
   // and there would be no way of knowing, without calling the same API again.
   // tldr: making this method save responses from API would not make sense.
-  async getSupportedCountries(): Promise<object> {
+  async getSupportedCountries(): Promise<Country[]> {
     const response = await fetch(
       'https://kayaposoft.com/enrico/json/v2.0/?action=getSupportedCountries',
     );
@@ -35,14 +36,14 @@ export class CountriesService {
     return countries;
   }
   async getGroupedByMonthHolidayListForCountry(countryCode: string, year: number): Promise<object> {
-    const data = await this.getData(countryCode, year);
+    const data: Data = await this.getData(countryCode, year);
 
     // if API responded with an error, return the error
     if (data.error) return { error: data.error };
 
     // group free days by month
-    const groupedDays = data.reduce((year: { [x: number]: any[]; }, day: { month: number; }) => {
-      const month = day.month;
+    const groupedDays = data.holidays.reduce((year: { [month: number]: Holiday[]; }, day: Holiday) => {
+      const month: number = day.month;
       if (!year[month]) {
         year[month] = [];
       }
@@ -51,7 +52,7 @@ export class CountriesService {
     }, {});
     return groupedDays;
   }
-  async getSpecificDayStatus(countryCode: string, year: number, day: number, month: number): Promise<object> {
+  async getSpecificDayStatus(countryCode: string, year: number, month: number, day: number): Promise<object> {
     // some data validation
     if (!year || !month || !day) return { error: 'Invalid date' };
     if (month > 12 || month < 1) return { error: 'Invalid month' };
@@ -63,7 +64,7 @@ export class CountriesService {
     if (data.error) return { error: data.error };
 
     // check if the day is in the holiday list
-    const specificDay = data.find(
+    const specificDay = data.holidays.find(
       (holiday: { day: number; month: number; }) => holiday.day == day && holiday.month == month,
     );
     if (specificDay) return { status: specificDay.holidayType };
@@ -72,17 +73,17 @@ export class CountriesService {
     const dayOfWeek: number = new Date(year, month - 1, day).getDay();
     // if it is a saturday or a sunday, return status as 'free day'
     if (dayOfWeek === 0 || dayOfWeek === 6) return { status: 'free_day' };
-
+    // otherwise it is a weekday, return status as 'work day'
     return { status: 'work_day' };
   }
 
-  async getMaxNumberOfConsecutiveFreeDays(countryCode: string, year: number) {
+  async getMaxNumberOfConsecutiveFreeDays(countryCode: string, year: number): Promise<object> {
     const data = await this.getData(countryCode, year);
     // if API responded with an error, return the error
     if (data.error) return { error: data.error };
 
     // iterate over the array of holidays and return a list in Date format
-    const freeDaysList = data.map((holiday: { month: number; day: number; }) => {
+    const freeDaysList = data.holidays.map((holiday: { month: number; day: number; }) => {
       // for some reason day needs to be +1 to get the correct day?
       // otherwise date 2020-01-01 will jump to 2019-12-31
       return new Date(year, holiday.month - 1, holiday.day + 1);
@@ -110,16 +111,19 @@ export class CountriesService {
     };
   }
 
-  async getData(countryCode: string, year: number) {
+  async getData(countryCode: string, year: number): Promise<Data> {
     // temp data variable
-    let data: Holiday[];
-    // check if the country and year is stored in the database, wait for the response
-    const queryResult: Year = await this.findOne(countryCode, year);
+    let data: Data = {
+      holidays: undefined,
+      error: undefined
+    }
+    // check if the country and year is stored in the db
+    let queryResult: Year = await this.yearRepository.findOne({ countryCode, year }, { relations: ['holidays'] });
 
     // if data is already in db return it
     if (queryResult) {
       // cast the data to Holiday from HolidayEntity
-      data = queryResult.holidays.map((holiday) => {
+      data.holidays = queryResult.holidays.map((holiday) => {
         return {
           day: holiday.day,
           month: holiday.month,
@@ -131,16 +135,20 @@ export class CountriesService {
       return data;
     }
 
-    // if the country and year is not stored in the database, call the API and save the response
+    // if data is not in db, fetch it from the API
     const response = await fetch(
       `https://kayaposoft.com/enrico/json/v2.0?action=getHolidaysForYear&year=${year}&country=${countryCode}`,
     );
     const jsonResponse = await response.json();
     // if error was returned from API return it
-    if (jsonResponse.error) return jsonResponse;
+    if (jsonResponse.error) {
+      data.error = jsonResponse.error;
+      return data;
+    }
+    console.log(data);
 
     // map response to format information
-    data = jsonResponse.map((holiday: { date: { day: number; month: number; }; name: { text: string; }[]; holidayType: string; }) => {
+    data.holidays = jsonResponse.map((holiday: { date: { day: number; month: number; }; name: { text: string; }[]; holidayType: string; }) => {
       return {
         day: holiday.date.day,
         month: holiday.date.month,
@@ -152,14 +160,15 @@ export class CountriesService {
     let dbInsertData: Year = {
       countryCode: countryCode,
       year: year,
-      holidays: data,
+      holidays: data.holidays,
     };
 
-    // save the list of holidays to the database
-    await this.createYear(dbInsertData);
+    // insert holidays into db, then insert the year connected to the holidays
+    await this.holidayRepository.save(dbInsertData.holidays);
+    await this.yearRepository.save(dbInsertData);
 
     // if everything went well return the formatted data
-    data = data.map((holiday: HolidayEntity) => {
+    data.holidays = data.holidays.map((holiday: HolidayEntity) => {
       return {
         day: holiday.day,
         month: holiday.month,
@@ -167,23 +176,13 @@ export class CountriesService {
         holidayType: holiday.holidayType,
       } as Holiday;
     });
+
     return data;
   }
 
   // helper function to get the difference between two dates in days
-  getDifferenceInDays(date1: Date, date2: Date) {
+  getDifferenceInDays(date1: Date, date2: Date): number {
     var diff = date2.getTime() - date1.getTime();
     return diff / (1000 * 60 * 60 * 24);
-  }
-  async createYear(year: Year): Promise<Year> {
-    // save all holidays in the holidayRepository, then save the year with the holidays
-    await this.holidayRepository.save(year.holidays);
-    await this.yearRepository.save(year);
-    return year;
-  }
-
-  findOne(countryCode: string, year: number): Promise<Year> {
-    // find year by countryCode and year
-    return this.yearRepository.findOne({ countryCode, year }, { relations: ['holidays'] });
   }
 }

@@ -7,10 +7,10 @@ async function bootstrap() {
   app.setGlobalPrefix('api');
 
   const config = new DocumentBuilder()
-  .setTitle('Countries API')
-  .setDescription('Documentation for the Countries API')
-  .setVersion('1.0')
-  .build();
+    .setTitle('Countries API')
+    .setDescription('Documentation for the Countries API')
+    .setVersion('1.1')
+    .build();
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, document);
 
